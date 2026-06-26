@@ -1,27 +1,28 @@
 //+------------------------------------------------------------------+
 //|                                          SMA9_100_CrossOver.mq5  |
 //|                                                                  |
-//|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
+//|        9/100 MA Crossover Expert Advisor (M3 Only) - v7.00       |
 //+------------------------------------------------------------------+
-#property copyright "SMA9-100"
-#property version   "6.00"
+#property copyright "MA9-100"
+#property version   "7.00"
 #property strict
 
 #include <Trade\Trade.mqh>
 
-input double LotSize       = 0.1;
-input int    MagicNumber    = 924100;
-input int    MA_Fast_Period = 9;
-input int    MA_Slow_Period = 100;
-input int    SL_Pips        = 10;
-input double RR_Ratio       = 3.0;
-input int    MaxOpenTrades  = 4;
-input double DailyMaxLoss   = 50.0;
-input int    StartHour      = 7;
-input int    StartMinute    = 0;
-input int    EndHour        = 23;
-input int    EndMinute      = 30;
-input bool   UseLocalTime   = true;
+input double         LotSize       = 0.1;
+input int            MagicNumber    = 924100;
+input int            MA_Fast_Period = 9;
+input int            MA_Slow_Period = 100;
+input ENUM_MA_METHOD MA_Method      = MODE_EMA;
+input int            SL_Pips        = 10;
+input double         RR_Ratio       = 3.0;
+input int            MaxOpenTrades  = 4;
+input double         DailyMaxLoss   = 50.0;
+input int            StartHour      = 7;
+input int            StartMinute    = 0;
+input int            EndHour        = 23;
+input int            EndMinute      = 30;
+input bool           UseLocalTime   = true;
 
 CTrade   trade;
 int      handleFast;
@@ -37,7 +38,7 @@ int OnInit()
 {
    if(Period() != PERIOD_M3)
    {
-      Alert("SMA9_100_CrossOver: Bu EA sadece M3 grafikte calisir! ",
+      Alert("Bu EA sadece M3 grafikte calisir! ",
             "Lutfen M3 (3 dakikalik) grafige ekleyin.");
       Print("HATA: EA M3 disinda bir zaman diliminde baslatildi. Durduruluyor.");
       return INIT_FAILED;
@@ -53,8 +54,8 @@ int OnInit()
    else
       pipSize = point;
 
-   handleFast = iMA(_Symbol, PERIOD_M3, MA_Fast_Period, 0, MODE_SMA, PRICE_CLOSE);
-   handleSlow = iMA(_Symbol, PERIOD_M3, MA_Slow_Period, 0, MODE_SMA, PRICE_CLOSE);
+   handleFast = iMA(_Symbol, PERIOD_M3, MA_Fast_Period, 0, MA_Method, PRICE_CLOSE);
+   handleSlow = iMA(_Symbol, PERIOD_M3, MA_Slow_Period, 0, MA_Method, PRICE_CLOSE);
 
    if(handleFast == INVALID_HANDLE || handleSlow == INVALID_HANDLE)
    {
@@ -67,13 +68,25 @@ int OnInit()
    lastResetDay   = -1;
    lastCrossBar   = 0;
 
+   string maName;
+   switch(MA_Method)
+   {
+      case MODE_EMA:  maName = "EMA"; break;
+      case MODE_SMA:  maName = "SMA"; break;
+      case MODE_SMMA: maName = "SMMA"; break;
+      case MODE_LWMA: maName = "LWMA"; break;
+      default:        maName = "MA";  break;
+   }
+
    int gmtOffsetSec = (int)TimeGMTOffset();
    int gmtOffsetHour = gmtOffsetSec / 3600;
    string tzInfo = UseLocalTime
       ? "UTC+3 (Istanbul) | GMT offset: " + IntegerToString(gmtOffsetHour) + "h"
       : "Server time";
 
-   Print("SMA9_100_CrossOver v6.00 | ", _Symbol,
+   Print("MA CrossOver v7.00 | ", _Symbol,
+         " | ", maName, " ", IntegerToString(MA_Fast_Period),
+         "/", IntegerToString(MA_Slow_Period),
          " | ", tzInfo,
          " | Seans: ", IntegerToString(StartHour), ":",
          StringFormat("%02d", StartMinute), "-",
@@ -165,7 +178,7 @@ void OnTick()
       double slDist = ask - sl;
       double tp     = NormalizeDouble(ask + slDist * RR_Ratio, digits);
 
-      if(trade.Buy(LotSize, _Symbol, ask, sl, tp, "SMA Cross BUY"))
+      if(trade.Buy(LotSize, _Symbol, ask, sl, tp, "MA Cross BUY"))
          lastCrossBar = currentBar;
    }
    else if(close < slowCurr)
@@ -175,7 +188,7 @@ void OnTick()
       double slDist = sl - bid;
       double tp     = NormalizeDouble(bid - slDist * RR_Ratio, digits);
 
-      if(trade.Sell(LotSize, _Symbol, bid, sl, tp, "SMA Cross SELL"))
+      if(trade.Sell(LotSize, _Symbol, bid, sl, tp, "MA Cross SELL"))
          lastCrossBar = currentBar;
    }
 }

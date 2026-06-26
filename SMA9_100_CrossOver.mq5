@@ -4,7 +4,7 @@
 //|        9/100 MA Crossover Expert Advisor (M3 Only) - v7.00       |
 //+------------------------------------------------------------------+
 #property copyright "MA9-100"
-#property version   "8.00"
+#property version   "9.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -14,7 +14,7 @@ input int            MagicNumber    = 924100;
 input int            MA_Fast_Period = 9;
 input int            MA_Slow_Period = 100;
 input ENUM_MA_METHOD MA_Method      = MODE_EMA;
-input int            SL_Pips        = 10;
+input double         SL_Dollars     = 10.0;
 input double         RR_Ratio       = 2.0;
 input int            MaxOpenTrades  = 6;
 input double         DailyMaxLoss   = 40.0;
@@ -84,7 +84,7 @@ int OnInit()
       ? "UTC+3 (Istanbul) | GMT offset: " + IntegerToString(gmtOffsetHour) + "h"
       : "Server time";
 
-   Print("MA CrossOver v8.00 | ", _Symbol,
+   Print("MA CrossOver v9.00 | ", _Symbol,
          " | ", maName, " ", IntegerToString(MA_Fast_Period),
          "/", IntegerToString(MA_Slow_Period),
          " | ", tzInfo,
@@ -166,27 +166,29 @@ void OnTick()
    if(CountOpenTrades() >= MaxOpenTrades)
       return;
 
-   double close  = iClose(_Symbol, PERIOD_M3, 0);
-   double high   = iHigh(_Symbol, PERIOD_M3, 0);
-   double low    = iLow(_Symbol, PERIOD_M3, 0);
-   int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   double close     = iClose(_Symbol, PERIOD_M3, 0);
+   int    digits    = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   double tickVal   = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSize  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+
+   if(tickVal <= 0 || tickSize <= 0) return;
+
+   double slDist = NormalizeDouble((SL_Dollars / (LotSize * tickVal)) * tickSize, digits);
 
    if(close > slowCurr)
    {
-      double sl     = NormalizeDouble(low - SL_Pips * pipSize, digits);
-      double ask    = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-      double slDist = ask - sl;
-      double tp     = NormalizeDouble(ask + slDist * RR_Ratio, digits);
+      double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double sl  = NormalizeDouble(ask - slDist, digits);
+      double tp  = NormalizeDouble(ask + slDist * RR_Ratio, digits);
 
       if(trade.Buy(LotSize, _Symbol, ask, sl, tp, "MA Cross BUY"))
          lastCrossBar = currentBar;
    }
    else if(close < slowCurr)
    {
-      double sl     = NormalizeDouble(high + SL_Pips * pipSize, digits);
-      double bid    = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      double slDist = sl - bid;
-      double tp     = NormalizeDouble(bid - slDist * RR_Ratio, digits);
+      double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl  = NormalizeDouble(bid + slDist, digits);
+      double tp  = NormalizeDouble(bid - slDist * RR_Ratio, digits);
 
       if(trade.Sell(LotSize, _Symbol, bid, sl, tp, "MA Cross SELL"))
          lastCrossBar = currentBar;

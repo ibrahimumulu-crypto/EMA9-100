@@ -4,7 +4,7 @@
 //|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
 //+------------------------------------------------------------------+
 #property copyright "SMA9-100"
-#property version   "5.00"
+#property version   "6.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -23,13 +23,14 @@ input int    EndHour        = 23;
 input int    EndMinute      = 30;
 input bool   UseLocalTime   = true;
 
-CTrade trade;
-int    handleFast;
-int    handleSlow;
-double pipSize;
-bool   dailyLimitHit;
-int    lastResetDay;
-bool   endOfDayClosed;
+CTrade   trade;
+int      handleFast;
+int      handleSlow;
+double   pipSize;
+bool     dailyLimitHit;
+int      lastResetDay;
+bool     endOfDayClosed;
+datetime lastCrossBar;
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -64,6 +65,7 @@ int OnInit()
    dailyLimitHit  = false;
    endOfDayClosed = false;
    lastResetDay   = -1;
+   lastCrossBar   = 0;
 
    int gmtOffsetSec = (int)TimeGMTOffset();
    int gmtOffsetHour = gmtOffsetSec / 3600;
@@ -71,7 +73,7 @@ int OnInit()
       ? "UTC+3 (Istanbul) | GMT offset: " + IntegerToString(gmtOffsetHour) + "h"
       : "Server time";
 
-   Print("SMA9_100_CrossOver v5.00 | ", _Symbol,
+   Print("SMA9_100_CrossOver v6.00 | ", _Symbol,
          " | ", tzInfo,
          " | Seans: ", IntegerToString(StartHour), ":",
          StringFormat("%02d", StartMinute), "-",
@@ -126,15 +128,12 @@ void OnTick()
       return;
    }
 
-   if(!IsNewBar())
-      return;
-
    double fast[], slow[];
    ArraySetAsSeries(fast, true);
    ArraySetAsSeries(slow, true);
 
-   if(CopyBuffer(handleFast, 0, 1, 2, fast) < 2) return;
-   if(CopyBuffer(handleSlow, 0, 1, 2, slow) < 2) return;
+   if(CopyBuffer(handleFast, 0, 0, 2, fast) < 2) return;
+   if(CopyBuffer(handleSlow, 0, 0, 2, slow) < 2) return;
 
    double fastPrev = fast[1];
    double fastCurr = fast[0];
@@ -147,12 +146,16 @@ void OnTick()
    if(!crossUp && !crossDown)
       return;
 
+   datetime currentBar = iTime(_Symbol, PERIOD_M3, 0);
+   if(currentBar == lastCrossBar)
+      return;
+
    if(CountOpenTrades() >= MaxOpenTrades)
       return;
 
-   double close  = iClose(_Symbol, PERIOD_M3, 1);
-   double high   = iHigh(_Symbol, PERIOD_M3, 1);
-   double low    = iLow(_Symbol, PERIOD_M3, 1);
+   double close  = iClose(_Symbol, PERIOD_M3, 0);
+   double high   = iHigh(_Symbol, PERIOD_M3, 0);
+   double low    = iLow(_Symbol, PERIOD_M3, 0);
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
    if(close > slowCurr)
@@ -162,7 +165,8 @@ void OnTick()
       double slDist = ask - sl;
       double tp     = NormalizeDouble(ask + slDist * RR_Ratio, digits);
 
-      trade.Buy(LotSize, _Symbol, ask, sl, tp, "SMA Cross BUY");
+      if(trade.Buy(LotSize, _Symbol, ask, sl, tp, "SMA Cross BUY"))
+         lastCrossBar = currentBar;
    }
    else if(close < slowCurr)
    {
@@ -171,7 +175,8 @@ void OnTick()
       double slDist = sl - bid;
       double tp     = NormalizeDouble(bid - slDist * RR_Ratio, digits);
 
-      trade.Sell(LotSize, _Symbol, bid, sl, tp, "SMA Cross SELL");
+      if(trade.Sell(LotSize, _Symbol, bid, sl, tp, "SMA Cross SELL"))
+         lastCrossBar = currentBar;
    }
 }
 
@@ -262,17 +267,6 @@ void CloseAllPositions()
             trade.PositionClose(ticket);
       }
    }
-}
-
-//+------------------------------------------------------------------+
-bool IsNewBar()
-{
-   static datetime lastBar = 0;
-   datetime currentBar = iTime(_Symbol, PERIOD_M3, 0);
-   if(currentBar == lastBar)
-      return false;
-   lastBar = currentBar;
-   return true;
 }
 
 //+------------------------------------------------------------------+

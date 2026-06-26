@@ -4,7 +4,7 @@
 //|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
 //+------------------------------------------------------------------+
 #property copyright "EMA9-100"
-#property version   "2.00"
+#property version   "3.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -20,6 +20,7 @@ input int    MaxOpenTrades  = 4;
 CTrade trade;
 int    handleFast;
 int    handleSlow;
+double pipSize;
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -34,6 +35,14 @@ int OnInit()
 
    trade.SetExpertMagicNumber(MagicNumber);
 
+   int digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+
+   if(digits == 3 || digits == 5)
+      pipSize = point * 10;
+   else
+      pipSize = point;
+
    handleFast = iMA(_Symbol, PERIOD_M3, MA_Fast_Period, 0, MODE_SMA, PRICE_CLOSE);
    handleSlow = iMA(_Symbol, PERIOD_M3, MA_Slow_Period, 0, MODE_SMA, PRICE_CLOSE);
 
@@ -43,7 +52,9 @@ int OnInit()
       return INIT_FAILED;
    }
 
-   Print("EMA9_100_CrossOver v2.00 baslatildi - M3 grafik - ", _Symbol);
+   Print("EMA9_100_CrossOver v3.00 | ", _Symbol,
+         " | Digits: ", digits,
+         " | 1 Pip: ", DoubleToString(pipSize, digits));
    return INIT_SUCCEEDED;
 }
 
@@ -81,28 +92,26 @@ void OnTick()
    if(CountOpenTrades() >= MaxOpenTrades)
       return;
 
-   double close = iClose(_Symbol, PERIOD_M3, 1);
-   double high  = iHigh(_Symbol, PERIOD_M3, 1);
-   double low   = iLow(_Symbol, PERIOD_M3, 1);
-   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   double close  = iClose(_Symbol, PERIOD_M3, 1);
+   double high   = iHigh(_Symbol, PERIOD_M3, 1);
+   double low    = iLow(_Symbol, PERIOD_M3, 1);
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-   double pipValue = point * 10;
 
    if(close > slowCurr)
    {
-      double sl = NormalizeDouble(low - SL_Pips * pipValue, digits);
-      double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double sl     = NormalizeDouble(low - SL_Pips * pipSize, digits);
+      double ask    = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
       double slDist = ask - sl;
-      double tp = NormalizeDouble(ask + slDist * RR_Ratio, digits);
+      double tp     = NormalizeDouble(ask + slDist * RR_Ratio, digits);
 
       trade.Buy(LotSize, _Symbol, ask, sl, tp, "EMA Cross BUY");
    }
    else if(close < slowCurr)
    {
-      double sl = NormalizeDouble(high + SL_Pips * pipValue, digits);
-      double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double sl     = NormalizeDouble(high + SL_Pips * pipSize, digits);
+      double bid    = SymbolInfoDouble(_Symbol, SYMBOL_BID);
       double slDist = sl - bid;
-      double tp = NormalizeDouble(bid - slDist * RR_Ratio, digits);
+      double tp     = NormalizeDouble(bid - slDist * RR_Ratio, digits);
 
       trade.Sell(LotSize, _Symbol, bid, sl, tp, "EMA Cross SELL");
    }

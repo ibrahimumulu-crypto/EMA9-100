@@ -4,7 +4,7 @@
 //|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
 //+------------------------------------------------------------------+
 #property copyright "SMA9-100"
-#property version   "4.00"
+#property version   "5.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -17,6 +17,11 @@ input int    SL_Pips        = 10;
 input double RR_Ratio       = 3.0;
 input int    MaxOpenTrades  = 4;
 input double DailyMaxLoss   = 100.0;
+input int    StartHour      = 7;
+input int    StartMinute    = 0;
+input int    EndHour        = 23;
+input int    EndMinute      = 30;
+input bool   UseLocalTime   = true;
 
 CTrade trade;
 int    handleFast;
@@ -24,6 +29,7 @@ int    handleSlow;
 double pipSize;
 bool   dailyLimitHit;
 int    lastResetDay;
+bool   endOfDayClosed;
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -55,15 +61,23 @@ int OnInit()
       return INIT_FAILED;
    }
 
-   dailyLimitHit = false;
-   MqlDateTime now;
-   TimeCurrent(now);
-   lastResetDay = now.day_of_year;
+   dailyLimitHit  = false;
+   endOfDayClosed = false;
+   lastResetDay   = -1;
 
-   Print("SMA9_100_CrossOver v4.00 | ", _Symbol,
-         " | Digits: ", digits,
-         " | 1 Pip: ", DoubleToString(pipSize, digits),
-         " | DailyMaxLoss: ", DoubleToString(DailyMaxLoss, 2), " USD");
+   int gmtOffsetSec = (int)TimeGMTOffset();
+   int gmtOffsetHour = gmtOffsetSec / 3600;
+   string tzInfo = UseLocalTime
+      ? "UTC+3 (Istanbul) | GMT offset: " + IntegerToString(gmtOffsetHour) + "h"
+      : "Server time";
+
+   Print("SMA9_100_CrossOver v5.00 | ", _Symbol,
+         " | ", tzInfo,
+         " | Seans: ", IntegerToString(StartHour), ":",
+         StringFormat("%02d", StartMinute), "-",
+         IntegerToString(EndHour), ":",
+         StringFormat("%02d", EndMinute),
+         " | MaxLoss: ", DoubleToString(DailyMaxLoss, 2), " USD");
    return INIT_SUCCEEDED;
 }
 
@@ -77,7 +91,25 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   CheckDailyReset();
+   int currentHour, currentMinute;
+   GetLocalHourMinute(currentHour, currentMinute);
+   int currentTotalMin = currentHour * 60 + currentMinute;
+   int startTotalMin   = StartHour * 60 + StartMinute;
+   int endTotalMin     = EndHour * 60 + EndMinute;
+
+   CheckDailyReset(currentTotalMin, startTotalMin);
+
+   if(currentTotalMin >= endTotalMin && !endOfDayClosed)
+   {
+      CloseAllPositions();
+      endOfDayClosed = true;
+      Print("Seans sonu: ", IntegerToString(EndHour), ":",
+            StringFormat("%02d", EndMinute),
+            " | Tum pozisyonlar kapatildi.");
+   }
+
+   if(currentTotalMin < startTotalMin || currentTotalMin >= endTotalMin)
+      return;
 
    if(dailyLimitHit)
       return;
@@ -144,16 +176,39 @@ void OnTick()
 }
 
 //+------------------------------------------------------------------+
-void CheckDailyReset()
+void GetLocalHourMinute(int &hour, int &minute)
+{
+   if(UseLocalTime)
+   {
+      datetime gmtTime = TimeGMT();
+      datetime istanbul = gmtTime + 3 * 3600;
+      MqlDateTime dt;
+      TimeToStruct(istanbul, dt);
+      hour   = dt.hour;
+      minute = dt.min;
+   }
+   else
+   {
+      MqlDateTime dt;
+      TimeCurrent(dt);
+      hour   = dt.hour;
+      minute = dt.min;
+   }
+}
+
+//+------------------------------------------------------------------+
+void CheckDailyReset(int currentTotalMin, int startTotalMin)
 {
    MqlDateTime now;
    TimeCurrent(now);
+   int today = now.day_of_year;
 
-   if(now.day_of_year != lastResetDay)
+   if(today != lastResetDay && currentTotalMin >= startTotalMin)
    {
-      lastResetDay  = now.day_of_year;
-      dailyLimitHit = false;
-      Print("Yeni gun basladi. Gunluk zarar sayaci sifirlandi.");
+      lastResetDay   = today;
+      dailyLimitHit  = false;
+      endOfDayClosed = false;
+      Print("Yeni seans basladi. Gunluk zarar sayaci sifirlandi.");
    }
 }
 

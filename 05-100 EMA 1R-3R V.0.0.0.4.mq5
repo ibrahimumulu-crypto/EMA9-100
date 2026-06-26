@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
-//|                                          EMA5_100_CrossOver.mq5  |
+//|                              05-100 EMA 1R-3R V.0.0.0.4.mq5     |
 //|                                                                  |
-//|       5/100 EMA Crossover Expert Advisor (M3 Only) - v10.00      |
+//|       5/100 EMA Crossover Expert Advisor (M3 Only)               |
 //+------------------------------------------------------------------+
 #property copyright "EMA5-100"
 #property version   "10.00"

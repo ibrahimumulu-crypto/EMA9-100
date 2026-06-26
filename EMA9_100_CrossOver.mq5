@@ -1,10 +1,10 @@
 //+------------------------------------------------------------------+
 //|                                          EMA9_100_CrossOver.mq5  |
 //|                                                                  |
-//|                 9 SMA / 100 SMA Crossover Expert Advisor         |
+//|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
 //+------------------------------------------------------------------+
 #property copyright "EMA9-100"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -24,10 +24,18 @@ int    handleSlow;
 //+------------------------------------------------------------------+
 int OnInit()
 {
+   if(Period() != PERIOD_M3)
+   {
+      Alert("EMA9_100_CrossOver: Bu EA sadece M3 grafikte calisir! ",
+            "Lutfen M3 (3 dakikalik) grafige ekleyin.");
+      Print("HATA: EA M3 disinda bir zaman diliminde baslatildi. Durduruluyor.");
+      return INIT_FAILED;
+   }
+
    trade.SetExpertMagicNumber(MagicNumber);
 
-   handleFast = iMA(_Symbol, PERIOD_CURRENT, MA_Fast_Period, 0, MODE_SMA, PRICE_CLOSE);
-   handleSlow = iMA(_Symbol, PERIOD_CURRENT, MA_Slow_Period, 0, MODE_SMA, PRICE_CLOSE);
+   handleFast = iMA(_Symbol, PERIOD_M3, MA_Fast_Period, 0, MODE_SMA, PRICE_CLOSE);
+   handleSlow = iMA(_Symbol, PERIOD_M3, MA_Slow_Period, 0, MODE_SMA, PRICE_CLOSE);
 
    if(handleFast == INVALID_HANDLE || handleSlow == INVALID_HANDLE)
    {
@@ -35,6 +43,7 @@ int OnInit()
       return INIT_FAILED;
    }
 
+   Print("EMA9_100_CrossOver v2.00 baslatildi - M3 grafik - ", _Symbol);
    return INIT_SUCCEEDED;
 }
 
@@ -72,9 +81,9 @@ void OnTick()
    if(CountOpenTrades() >= MaxOpenTrades)
       return;
 
-   double close = iClose(_Symbol, PERIOD_CURRENT, 1);
-   double high  = iHigh(_Symbol, PERIOD_CURRENT, 1);
-   double low   = iLow(_Symbol, PERIOD_CURRENT, 1);
+   double close = iClose(_Symbol, PERIOD_M3, 1);
+   double high  = iHigh(_Symbol, PERIOD_M3, 1);
+   double low   = iLow(_Symbol, PERIOD_M3, 1);
    double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    int    digits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
    double pipValue = point * 10;
@@ -103,7 +112,7 @@ void OnTick()
 bool IsNewBar()
 {
    static datetime lastBar = 0;
-   datetime currentBar = iTime(_Symbol, PERIOD_CURRENT, 0);
+   datetime currentBar = iTime(_Symbol, PERIOD_M3, 0);
    if(currentBar == lastBar)
       return false;
    lastBar = currentBar;

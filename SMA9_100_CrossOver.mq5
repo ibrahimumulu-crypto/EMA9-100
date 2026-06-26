@@ -4,7 +4,7 @@
 //|        9/100 MA Crossover Expert Advisor (M3 Only) - v7.00       |
 //+------------------------------------------------------------------+
 #property copyright "MA9-100"
-#property version   "7.00"
+#property version   "8.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -15,9 +15,9 @@ input int            MA_Fast_Period = 9;
 input int            MA_Slow_Period = 100;
 input ENUM_MA_METHOD MA_Method      = MODE_EMA;
 input int            SL_Pips        = 10;
-input double         RR_Ratio       = 3.0;
-input int            MaxOpenTrades  = 4;
-input double         DailyMaxLoss   = 50.0;
+input double         RR_Ratio       = 2.0;
+input int            MaxOpenTrades  = 6;
+input double         DailyMaxLoss   = 40.0;
 input int            StartHour      = 7;
 input int            StartMinute    = 0;
 input int            EndHour        = 23;
@@ -84,7 +84,7 @@ int OnInit()
       ? "UTC+3 (Istanbul) | GMT offset: " + IntegerToString(gmtOffsetHour) + "h"
       : "Server time";
 
-   Print("MA CrossOver v7.00 | ", _Symbol,
+   Print("MA CrossOver v8.00 | ", _Symbol,
          " | ", maName, " ", IntegerToString(MA_Fast_Period),
          "/", IntegerToString(MA_Slow_Period),
          " | ", tzInfo,

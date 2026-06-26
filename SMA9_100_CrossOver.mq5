@@ -4,7 +4,7 @@
 //|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
 //+------------------------------------------------------------------+
 #property copyright "SMA9-100"
-#property version   "3.00"
+#property version   "4.00"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -16,11 +16,14 @@ input int    MA_Slow_Period = 100;
 input int    SL_Pips        = 10;
 input double RR_Ratio       = 3.0;
 input int    MaxOpenTrades  = 4;
+input double DailyMaxLoss   = 100.0;
 
 CTrade trade;
 int    handleFast;
 int    handleSlow;
 double pipSize;
+bool   dailyLimitHit;
+int    lastResetDay;
 
 //+------------------------------------------------------------------+
 int OnInit()
@@ -52,9 +55,15 @@ int OnInit()
       return INIT_FAILED;
    }
 
-   Print("SMA9_100_CrossOver v3.00 | ", _Symbol,
+   dailyLimitHit = false;
+   MqlDateTime now;
+   TimeCurrent(now);
+   lastResetDay = now.day_of_year;
+
+   Print("SMA9_100_CrossOver v4.00 | ", _Symbol,
          " | Digits: ", digits,
-         " | 1 Pip: ", DoubleToString(pipSize, digits));
+         " | 1 Pip: ", DoubleToString(pipSize, digits),
+         " | DailyMaxLoss: ", DoubleToString(DailyMaxLoss, 2), " USD");
    return INIT_SUCCEEDED;
 }
 
@@ -68,6 +77,23 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   CheckDailyReset();
+
+   if(dailyLimitHit)
+      return;
+
+   double dailyPL = GetDailyPL();
+   if(dailyPL <= -DailyMaxLoss)
+   {
+      CloseAllPositions();
+      dailyLimitHit = true;
+      Alert("Gunluk zarar limiti asildi! Islemler durduruldu. Zarar: ",
+            DoubleToString(dailyPL, 2), " USD");
+      Print("GUNLUK LIMIT: ", DoubleToString(dailyPL, 2),
+            " USD | Limit: -", DoubleToString(DailyMaxLoss, 2), " USD");
+      return;
+   }
+
    if(!IsNewBar())
       return;
 
@@ -114,6 +140,72 @@ void OnTick()
       double tp     = NormalizeDouble(bid - slDist * RR_Ratio, digits);
 
       trade.Sell(LotSize, _Symbol, bid, sl, tp, "SMA Cross SELL");
+   }
+}
+
+//+------------------------------------------------------------------+
+void CheckDailyReset()
+{
+   MqlDateTime now;
+   TimeCurrent(now);
+
+   if(now.day_of_year != lastResetDay)
+   {
+      lastResetDay  = now.day_of_year;
+      dailyLimitHit = false;
+      Print("Yeni gun basladi. Gunluk zarar sayaci sifirlandi.");
+   }
+}
+
+//+------------------------------------------------------------------+
+double GetDailyPL()
+{
+   double totalPL = 0.0;
+
+   datetime startOfDay = StringToTime(TimeToString(TimeCurrent(), TIME_DATE));
+   HistorySelect(startOfDay, TimeCurrent());
+
+   for(int i = HistoryDealsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0) continue;
+
+      if(HistoryDealGetInteger(ticket, DEAL_MAGIC) != MagicNumber) continue;
+      if(HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+
+      totalPL += HistoryDealGetDouble(ticket, DEAL_PROFIT)
+               + HistoryDealGetDouble(ticket, DEAL_SWAP)
+               + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+   }
+
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(PositionSelectByTicket(PositionGetTicket(i)))
+      {
+         if(PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+         {
+            totalPL += PositionGetDouble(POSITION_PROFIT)
+                     + PositionGetDouble(POSITION_SWAP);
+         }
+      }
+   }
+
+   return totalPL;
+}
+
+//+------------------------------------------------------------------+
+void CloseAllPositions()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+
+      if(PositionSelectByTicket(ticket))
+      {
+         if(PositionGetInteger(POSITION_MAGIC) == MagicNumber)
+            trade.PositionClose(ticket);
+      }
    }
 }
 

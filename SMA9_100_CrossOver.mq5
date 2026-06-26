@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
-//|                                          EMA9_100_CrossOver.mq5  |
+//|                                          SMA9_100_CrossOver.mq5  |
 //|                                                                  |
 //|          9 SMA / 100 SMA Crossover Expert Advisor (M3 Only)      |
 //+------------------------------------------------------------------+
-#property copyright "EMA9-100"
+#property copyright "SMA9-100"
 #property version   "3.00"
 #property strict
 
@@ -27,7 +27,7 @@ int OnInit()
 {
    if(Period() != PERIOD_M3)
    {
-      Alert("EMA9_100_CrossOver: Bu EA sadece M3 grafikte calisir! ",
+      Alert("SMA9_100_CrossOver: Bu EA sadece M3 grafikte calisir! ",
             "Lutfen M3 (3 dakikalik) grafige ekleyin.");
       Print("HATA: EA M3 disinda bir zaman diliminde baslatildi. Durduruluyor.");
       return INIT_FAILED;
@@ -52,7 +52,7 @@ int OnInit()
       return INIT_FAILED;
    }
 
-   Print("EMA9_100_CrossOver v3.00 | ", _Symbol,
+   Print("SMA9_100_CrossOver v3.00 | ", _Symbol,
          " | Digits: ", digits,
          " | 1 Pip: ", DoubleToString(pipSize, digits));
    return INIT_SUCCEEDED;
@@ -104,7 +104,7 @@ void OnTick()
       double slDist = ask - sl;
       double tp     = NormalizeDouble(ask + slDist * RR_Ratio, digits);
 
-      trade.Buy(LotSize, _Symbol, ask, sl, tp, "EMA Cross BUY");
+      trade.Buy(LotSize, _Symbol, ask, sl, tp, "SMA Cross BUY");
    }
    else if(close < slowCurr)
    {
@@ -113,7 +113,7 @@ void OnTick()
       double slDist = sl - bid;
       double tp     = NormalizeDouble(bid - slDist * RR_Ratio, digits);
 
-      trade.Sell(LotSize, _Symbol, bid, sl, tp, "EMA Cross SELL");
+      trade.Sell(LotSize, _Symbol, bid, sl, tp, "SMA Cross SELL");
    }
 }
 
@@ -134,7 +134,7 @@ int CountOpenTrades()
    int count = 0;
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
-      if(PositionGetSymbol(i) == _Symbol)
+      if(PositionSelectByTicket(PositionGetTicket(i)))
       {
          if(PositionGetInteger(POSITION_MAGIC) == MagicNumber)
             count++;

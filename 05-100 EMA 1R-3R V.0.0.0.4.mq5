@@ -162,6 +162,14 @@ void OnTick()
    if(tickVal <= 0 || tickSize <= 0 || atr[0] <= 0) return;
 
    double slDist    = NormalizeDouble(ATR_Multiplier * atr[0], digits);
+
+   long   stopLevel = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double spread    = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD) * _Point;
+   double minDist   = NormalizeDouble((stopLevel + 2) * _Point, digits);
+
+   if(slDist < minDist)
+      slDist = minDist;
+
    double slCostUSD = (slDist / tickSize) * tickVal * LotSize;
    double tradeLot  = LotSize;
 
@@ -178,6 +186,20 @@ void OnTick()
       double sl  = NormalizeDouble(ask - slDist, digits);
       double tp  = NormalizeDouble(ask + slDist * RR_Ratio, digits);
 
+      if(MathAbs(ask - tp) < minDist)
+         tp = NormalizeDouble(ask + minDist, digits);
+
+      Print("BUY Signal | StopLevel: ", stopLevel, " | Spread: ", spread / _Point,
+            " pts | MinDist: ", minDist / _Point, " pts | slDist: ", slDist / _Point,
+            " pts | SL: ", sl, " | TP: ", tp, " | Ask: ", ask,
+            " | Bid: ", SymbolInfoDouble(_Symbol, SYMBOL_BID));
+
+      if(!IsStopValid(ask, sl, tp))
+      {
+         Print("BUY IPTAL: SL/TP stop level kontrolunden gecemedi");
+         return;
+      }
+
       if(trade.Buy(tradeLot, _Symbol, ask, sl, tp, "EMA Cross BUY"))
          lastCrossBar = currentBar;
    }
@@ -186,6 +208,20 @@ void OnTick()
       double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
       double sl  = NormalizeDouble(bid + slDist, digits);
       double tp  = NormalizeDouble(bid - slDist * RR_Ratio, digits);
+
+      if(MathAbs(bid - tp) < minDist)
+         tp = NormalizeDouble(bid - minDist, digits);
+
+      Print("SELL Signal | StopLevel: ", stopLevel, " | Spread: ", spread / _Point,
+            " pts | MinDist: ", minDist / _Point, " pts | slDist: ", slDist / _Point,
+            " pts | SL: ", sl, " | TP: ", tp,
+            " | Ask: ", SymbolInfoDouble(_Symbol, SYMBOL_ASK), " | Bid: ", bid);
+
+      if(!IsStopValid(bid, sl, tp))
+      {
+         Print("SELL IPTAL: SL/TP stop level kontrolunden gecemedi");
+         return;
+      }
 
       if(trade.Sell(tradeLot, _Symbol, bid, sl, tp, "EMA Cross SELL"))
          lastCrossBar = currentBar;
@@ -293,5 +329,15 @@ int CountOpenTrades()
       }
    }
    return count;
+}
+
+//+------------------------------------------------------------------+
+bool IsStopValid(double price, double sl, double tp)
+{
+   long minStop = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
+   double minDist = (minStop + 2) * _Point;
+   if(sl > 0 && MathAbs(price - sl) < minDist) return false;
+   if(tp > 0 && MathAbs(price - tp) < minDist) return false;
+   return true;
 }
 //+------------------------------------------------------------------+

@@ -1,4 +1,4 @@
-// TALGO 7 - Panel Edit+Buton Yan Yana Duzeni
+// TALGO 8 - Panel Y Konumu Koseye Yakin
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -28,7 +28,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 7"
+#property copyright "TALGO 8"
 #property version   "2.00"
 
 //============================================================
@@ -302,7 +302,7 @@ void PanelOlustur()
    ObjectCreate(0, EtiketAdi, OBJ_LABEL, 0, 0, 0);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_XDISTANCE, 170);
-   ObjectSetInteger(0, EtiketAdi, OBJPROP_YDISTANCE, 60);
+   ObjectSetInteger(0, EtiketAdi, OBJPROP_YDISTANCE, 5);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_COLOR, clrWhite);
    ObjectSetString(0, EtiketAdi, OBJPROP_TEXT, "EMA2 Periyot:");
@@ -312,7 +312,7 @@ void PanelOlustur()
    ObjectCreate(0, EditAdi, OBJ_EDIT, 0, 0, 0);
    ObjectSetInteger(0, EditAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, EditAdi, OBJPROP_XDISTANCE, 146);
-   ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 80);
+   ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 25);
    ObjectSetInteger(0, EditAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, EditAdi, OBJPROP_YSIZE, 20);
    ObjectSetString(0, EditAdi, OBJPROP_TEXT, IntegerToString(MA2_Period));
@@ -327,7 +327,7 @@ void PanelOlustur()
    ObjectCreate(0, ButonAdi, OBJ_BUTTON, 0, 0, 0);
    ObjectSetInteger(0, ButonAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, ButonAdi, OBJPROP_XDISTANCE, 83);
-   ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 80);
+   ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 25);
    ObjectSetInteger(0, ButonAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, ButonAdi, OBJPROP_YSIZE, 20);
    ObjectSetString(0, ButonAdi, OBJPROP_TEXT, "Apply");

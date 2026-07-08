@@ -1,4 +1,4 @@
-// TALGO 3 - Buton Konumu + Metin Duzeltmesi
+// TALGO 4 - MA1/MA2 Renk Duzeltmesi (Ozel Cizim)
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -9,6 +9,12 @@
 // - EMA1 (MA1) ile MA2'nin kesistigi mumlarda gorsel ok isareti
 //   eklendi (SADECE gorsel - Sart 1 hesaplama mantigi degildir).
 //
+// TALGO 4: MA1/MA2 artik ChartIndicatorAdd ile DEGIL, renkli OBJ_TREND
+// segmentleriyle biz ciziyoruz (MA1=siyah, MA2=koyu pembe). Sebep:
+// native "Moving Average" indikatorunun rengi disaridan (EA'dan)
+// degistirilemiyor - iMA()'da renk parametresi yok, ObjectSetInteger
+// sadece OBJ_* nesnelerinde calisir. Hesaplama yine native iMA() ile.
+//
 // Giris, cikis, stop-loss ve filtre mantigi bu asamada YOKTUR,
 // ileride ayri adimlarda (brick-by-brick) eklenecektir.
 //
@@ -18,7 +24,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 3"
+#property copyright "TALGO 4"
 #property version   "2.00"
 
 //============================================================
@@ -64,10 +70,19 @@ string ButonAdi  = PANEL_PREFIX + "Buton";
 #define KESISIM_PREFIX "V0001_Kesisim_"
 datetime SonKontrolEdilenMumZamani = 0; // ayni mumu tekrar tekrar islememek icin
 
+//--- TALGO 4: MA1/MA2 ozel renkli cizgi ayarlari (native ChartIndicatorAdd
+// yerine OBJ_TREND segmentleriyle biz ciziyoruz - renk kontrolu icin)
+#define MA1_CIZGI_PREFIX "V0001_MA1Cizgi_"
+#define MA2_CIZGI_PREFIX "V0001_MA2Cizgi_"
+color MA1_CizgiRengi = clrBlack;    // MA1 (EMA1) sabit cizgi rengi
+color MA2_CizgiRengi = clrDeepPink; // MA2 cizgi rengi - periyot degisse de SABIT kalir
+int   GecmisCizimBarSiniri = 2000;  // performans icin gecmise donuk cizilecek maksimum bar sayisi
+
 //============================================================
-// Yardimci: Bir MA'yi iMA handle'i ile olusturup native olarak
-// chart'a ekler (ChartIndicatorAdd). Basariliysa handle ve
-// indikatorun chart'taki kisa adini disariya yazar.
+// Yardimci: Bir MA'yi iMA handle'i ile olusturur.
+// TALGO 4: ChartIndicatorAdd ARTIK KULLANILMIYOR - asagidaki
+// MASegmentCiz/MAGecmisiCiz fonksiyonlari cizimi renkli OBJ_TREND
+// segmentleriyle yapiyor (bkz. dosya basindaki TALGO 4 notu).
 //============================================================
 bool MAEkle(int periyot, ENUM_MA_METHOD metod, ENUM_APPLIED_PRICE fiyat,
             int &handleCiktisi, string &indikatorAdiCiktisi)
@@ -79,17 +94,74 @@ bool MAEkle(int periyot, ENUM_MA_METHOD metod, ENUM_APPLIED_PRICE fiyat,
       return false;
    }
 
-   if(!ChartIndicatorAdd(0, 0, yeniHandle))
-   {
-      Print("HATA: ChartIndicatorAdd basarisiz. Periyot=", periyot, " HataKodu=", GetLastError());
-      IndicatorRelease(yeniHandle);
-      return false;
-   }
-
    handleCiktisi = yeniHandle;
-   int toplamIndikator = ChartIndicatorsTotal(0, 0);
-   indikatorAdiCiktisi = ChartIndicatorName(0, 0, toplamIndikator - 1);
+   indikatorAdiCiktisi = "";
    return true;
+}
+
+//============================================================
+// TALGO 4: MA1/MA2'yi renkli OBJ_TREND segmentleriyle cizer. Ayni
+// segment (ayni bitis zamani) tekrar cizilmez (ObjectFind kontrolu).
+//============================================================
+void MASegmentCiz(string prefix, color renk, datetime zaman1, double deger1, datetime zaman2, double deger2)
+{
+   string segmentAdi = prefix + (string)zaman2;
+   if(ObjectFind(0, segmentAdi) >= 0)
+      return;
+
+   ObjectCreate(0, segmentAdi, OBJ_TREND, 0, zaman1, deger1, zaman2, deger2);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_COLOR, renk);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_RAY_RIGHT, false);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_RAY_LEFT, false);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_BACK, false);
+}
+
+//============================================================
+// Verilen handle'in gecmis degerlerini (en fazla GecmisCizimBarSiniri
+// kadar) bastan sona renkli segmentler olarak ciz. MA2 periyodu
+// degistiginde TUM gecmis degerler degistigi icin once eski segmentler
+// silinir (ObjectsDeleteAll), sonra yeniden cizilir - renk HER ZAMAN
+// disaridan verilen 'renk' parametresiyle sabit kalir.
+//============================================================
+void MAGecmisiCiz(int handle, string prefix, color renk)
+{
+   ObjectsDeleteAll(0, prefix);
+
+   int mevcutBarSayisi = Bars(_Symbol, PERIOD_CURRENT);
+   int barSiniri = MathMin(GecmisCizimBarSiniri, mevcutBarSayisi - 1);
+   if(barSiniri <= 0)
+      return;
+
+   double degerler[];
+   ArraySetAsSeries(degerler, true);
+   if(CopyBuffer(handle, 0, 0, barSiniri + 1, degerler) != barSiniri + 1)
+      return;
+
+   for(int i = 0; i < barSiniri; i++)
+   {
+      datetime zaman1 = iTime(_Symbol, PERIOD_CURRENT, i + 1);
+      datetime zaman2 = iTime(_Symbol, PERIOD_CURRENT, i);
+      MASegmentCiz(prefix, renk, zaman1, degerler[i + 1], zaman2, degerler[i]);
+   }
+}
+
+//============================================================
+// Yeni kapanan mum icin MA cizgisine tek bir segment ekler (OnTick'te
+// her yeni mumda cagrilir - tum gecmisi tekrar cizmez, performansli).
+//============================================================
+void MAYeniBarCiz(int handle, string prefix, color renk)
+{
+   double degerler[];
+   ArraySetAsSeries(degerler, true);
+   if(CopyBuffer(handle, 0, 1, 2, degerler) != 2)
+      return;
+
+   datetime zaman1 = iTime(_Symbol, PERIOD_CURRENT, 2);
+   datetime zaman2 = iTime(_Symbol, PERIOD_CURRENT, 1);
+   MASegmentCiz(prefix, renk, zaman1, degerler[1], zaman2, degerler[0]);
 }
 
 //============================================================
@@ -120,6 +192,10 @@ void MA2YenidenCiz(int yeniPeriyot)
    MA2_Handle       = yeniHandle;
    MA2IndikatorAdi  = yeniIndikatorAdi;
    MA2_Period       = yeniPeriyot;
+
+   // TALGO 4: yeni periyotla MA2 cizgisini KOYU PEMBE renkte yeniden ciz
+   // (renk periyottan bagimsiz, her zaman MA2_CizgiRengi kullanilir)
+   MAGecmisiCiz(MA2_Handle, MA2_CIZGI_PREFIX, MA2_CizgiRengi);
 
    ChartRedraw();
 }
@@ -283,6 +359,8 @@ int OnInit()
       Print("HATA: MA1 (sabit referans) olusturulamadi.");
       return INIT_FAILED;
    }
+   // TALGO 4: MA1 (EMA1) cizgisini SIYAH renkte ciz
+   MAGecmisiCiz(MA1_Handle, MA1_CIZGI_PREFIX, MA1_CizgiRengi);
 
    MA2_Period = MA2_BaslangicPeriyodu;
    if(!MAEkle(MA2_Period, MA2_Metodu, MA2_FiyatTipi, MA2_Handle, MA2IndikatorAdi))
@@ -290,6 +368,8 @@ int OnInit()
       Print("HATA: MA2 (degisken sistem kriteri) olusturulamadi.");
       return INIT_FAILED;
    }
+   // TALGO 4: MA2 cizgisini KOYU PEMBE renkte ciz
+   MAGecmisiCiz(MA2_Handle, MA2_CIZGI_PREFIX, MA2_CizgiRengi);
 
    PanelOlustur();
    ChartRedraw();
@@ -318,6 +398,10 @@ void OnDeinit(const int reason)
 
    // TALGO 2: kesisim oklarini da temizle
    ObjectsDeleteAll(0, KESISIM_PREFIX);
+
+   // TALGO 4: MA1/MA2 renkli cizgi segmentlerini de temizle
+   ObjectsDeleteAll(0, MA1_CIZGI_PREFIX);
+   ObjectsDeleteAll(0, MA2_CIZGI_PREFIX);
 
    ChartRedraw();
 }
@@ -366,6 +450,11 @@ void OnTick()
       return; // henuz yeni mum yok, tekrar kontrol etme
 
    SonKontrolEdilenMumZamani = suankiMumZamani;
+
+   // TALGO 4: MA1/MA2 renkli cizgilerini yeni mumla uzat
+   MAYeniBarCiz(MA1_Handle, MA1_CIZGI_PREFIX, MA1_CizgiRengi);
+   MAYeniBarCiz(MA2_Handle, MA2_CIZGI_PREFIX, MA2_CizgiRengi);
+
    KesisimKontrolEt();
    ChartRedraw();
 }

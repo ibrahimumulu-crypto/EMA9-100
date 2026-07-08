@@ -1,7 +1,14 @@
-// V0001 05350 EMA - MA1/MA2 Chart Kontrol Katmani
+// TALGO 2 - MA2 Buton Fix + Kesisim Gorsellestirme
 //
-// Bu adimda SADECE MA1 (sabit referans) ve MA2 (degisken, buton/edit
-// kutusu ile chart uzerinden kontrol edilen) katmani kodlanmistir.
+// V0002 degisiklikleri (onceki V0001 kodundan devam):
+// - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
+//   tasindi (eski yerlesim chart'in sol-ust kosesindeki native
+//   sembol/OHLC yazisiyla cakisiyordu, bu yuzden panel goze
+//   carpmiyor/calismiyor gibi goruluyordu).
+// - Buton tiklamasi Print ile terminale loglanir (dogrulama icin).
+// - EMA1 (MA1) ile MA2'nin kesistigi mumlarda gorsel ok isareti
+//   eklendi (SADECE gorsel - Sart 1 hesaplama mantigi degildir).
+//
 // Giris, cikis, stop-loss ve filtre mantigi bu asamada YOKTUR,
 // ileride ayri adimlarda (brick-by-brick) eklenecektir.
 //
@@ -11,8 +18,8 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "V0001 05350 EMA"
-#property version   "1.00"
+#property copyright "TALGO 2"
+#property version   "2.00"
 
 //============================================================
 // MA1 - SABIT REFERANS ORTALAMA
@@ -51,6 +58,11 @@ string MA2IndikatorAdi = "";
 string EtiketAdi = PANEL_PREFIX + "Etiket";
 string EditAdi   = PANEL_PREFIX + "Edit";
 string ButonAdi  = PANEL_PREFIX + "Buton";
+
+//--- TALGO 2: EMA1/MA2 kesisim gorsellestirme (SADECE gorsel isaretleme,
+// Sart 1 hesaplama mantigi bu adimda yazilmiyor)
+#define KESISIM_PREFIX "V0001_Kesisim_"
+datetime SonKontrolEdilenMumZamani = 0; // ayni mumu tekrar tekrar islememek icin
 
 //============================================================
 // Yardimci: Bir MA'yi iMA handle'i ile olusturup native olarak
@@ -141,14 +153,75 @@ bool MetniPeriyodaCevir(string metin, int &periyotCiktisi)
 }
 
 //============================================================
+// TALGO 2: EMA1 (MA1) ile MA2'nin son kapanan mumda kesisip
+// kesismedigini kontrol eder, kesisim varsa ok isareti cizer.
+// SADECE gorsel isaretleme - Sart 1'in hesaplama mantigi degildir.
+//============================================================
+void KesisimKontrolEt()
+{
+   double ma1Degerleri[], ma2Degerleri[];
+   ArraySetAsSeries(ma1Degerleri, true);
+   ArraySetAsSeries(ma2Degerleri, true);
+
+   // index0 = son kapanan mum (shift 1), index1 = bir onceki mum (shift 2)
+   if(CopyBuffer(MA1_Handle, 0, 1, 2, ma1Degerleri) != 2)
+      return;
+   if(CopyBuffer(MA2_Handle, 0, 1, 2, ma2Degerleri) != 2)
+      return;
+
+   bool oncekiMumdaAltinda = ma1Degerleri[1] < ma2Degerleri[1];
+   bool oncekiMumdaUstunde = ma1Degerleri[1] > ma2Degerleri[1];
+   bool simdikiMumdaUstunde = ma1Degerleri[0] > ma2Degerleri[0];
+   bool simdikiMumdaAltinda = ma1Degerleri[0] < ma2Degerleri[0];
+
+   datetime mumZamani = iTime(_Symbol, PERIOD_CURRENT, 1);
+
+   if(oncekiMumdaAltinda && simdikiMumdaUstunde)
+   {
+      double fiyat = iLow(_Symbol, PERIOD_CURRENT, 1);
+      KesisimOkuCiz(mumZamani, fiyat, true); // yukari kesisim - yesil ok
+   }
+   else if(oncekiMumdaUstunde && simdikiMumdaAltinda)
+   {
+      double fiyat = iHigh(_Symbol, PERIOD_CURRENT, 1);
+      KesisimOkuCiz(mumZamani, fiyat, false); // asagi kesisim - kirmizi ok
+   }
+}
+
+//============================================================
+// Belirtilen mum zamaninda yukari (yesil) ya da asagi (kirmizi)
+// kesisim oku cizer. Ayni mum icin tekrar cizim yapmaz.
+//============================================================
+void KesisimOkuCiz(datetime mumZamani, double fiyat, bool yukariKesisim)
+{
+   string okAdi = KESISIM_PREFIX + (string)mumZamani + (yukariKesisim ? "_Y" : "_A");
+   if(ObjectFind(0, okAdi) >= 0)
+      return; // bu mum icin ok zaten cizilmis
+
+   double mumYuksekligi = iHigh(_Symbol, PERIOD_CURRENT, 1) - iLow(_Symbol, PERIOD_CURRENT, 1);
+   double bosluk = (mumYuksekligi > 0) ? mumYuksekligi * 0.3 : _Point * 10;
+   double okFiyati = yukariKesisim ? (fiyat - bosluk) : (fiyat + bosluk);
+
+   ObjectCreate(0, okAdi, OBJ_ARROW, 0, mumZamani, okFiyati);
+   ObjectSetInteger(0, okAdi, OBJPROP_ARROWCODE, yukariKesisim ? 233 : 234);
+   ObjectSetInteger(0, okAdi, OBJPROP_COLOR, yukariKesisim ? clrLime : clrRed);
+   ObjectSetInteger(0, okAdi, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, okAdi, OBJPROP_ANCHOR, yukariKesisim ? ANCHOR_TOP : ANCHOR_BOTTOM);
+   ObjectSetInteger(0, okAdi, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, okAdi, OBJPROP_HIDDEN, true);
+}
+
+//============================================================
 // MA2 kontrol panelini (etiket + edit kutusu + buton) chart
 // uzerinde olusturur.
 //============================================================
 void PanelOlustur()
 {
+   // V0002: Panel CORNER_RIGHT_UPPER'a tasindi - sol-ust kosedeki native
+   // sembol/OHLC yazisiyla cakismasin diye, en az 15px margin birakildi.
    ObjectCreate(0, EtiketAdi, OBJ_LABEL, 0, 0, 0);
-   ObjectSetInteger(0, EtiketAdi, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetInteger(0, EtiketAdi, OBJPROP_XDISTANCE, 10);
+   ObjectSetInteger(0, EtiketAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, EtiketAdi, OBJPROP_XDISTANCE, 170);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_YDISTANCE, 20);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_COLOR, clrWhite);
@@ -157,8 +230,8 @@ void PanelOlustur()
    ObjectSetInteger(0, EtiketAdi, OBJPROP_HIDDEN, true);
 
    ObjectCreate(0, EditAdi, OBJ_EDIT, 0, 0, 0);
-   ObjectSetInteger(0, EditAdi, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetInteger(0, EditAdi, OBJPROP_XDISTANCE, 90);
+   ObjectSetInteger(0, EditAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, EditAdi, OBJPROP_XDISTANCE, 83);
    ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 15);
    ObjectSetInteger(0, EditAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, EditAdi, OBJPROP_YSIZE, 20);
@@ -172,8 +245,8 @@ void PanelOlustur()
    ObjectSetInteger(0, EditAdi, OBJPROP_HIDDEN, true);
 
    ObjectCreate(0, ButonAdi, OBJ_BUTTON, 0, 0, 0);
-   ObjectSetInteger(0, ButonAdi, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-   ObjectSetInteger(0, ButonAdi, OBJPROP_XDISTANCE, 155);
+   ObjectSetInteger(0, ButonAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
+   ObjectSetInteger(0, ButonAdi, OBJPROP_XDISTANCE, 15);
    ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 15);
    ObjectSetInteger(0, ButonAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, ButonAdi, OBJPROP_YSIZE, 20);
@@ -243,6 +316,9 @@ void OnDeinit(const int reason)
    ObjectDelete(0, EditAdi);
    ObjectDelete(0, ButonAdi);
 
+   // TALGO 2: kesisim oklarini da temizle
+   ObjectsDeleteAll(0, KESISIM_PREFIX);
+
    ChartRedraw();
 }
 
@@ -253,6 +329,10 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
 {
    if(id != CHARTEVENT_OBJECT_CLICK || sparam != ButonAdi)
       return;
+
+   // TALGO 2: tiklama gercekten yakalandi mi diye Experts sekmesinden
+   // dogrulanabilsin diye log satiri (hangi obje adiyla eslesti)
+   Print("MA2 butonuna tiklandi. Eslesen obje adi='", sparam, "' ButonAdi='", ButonAdi, "'");
 
    // Butonun basili gorunumde takilmasini engelle
    ObjectSetInteger(0, ButonAdi, OBJPROP_STATE, false);
@@ -275,8 +355,17 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
 }
 
 //============================================================
-// OnTick - Bu adimda henuz giris/cikis/filtre mantigi yok
+// OnTick - Giris/cikis/filtre mantigi bu adimda YOK.
+// Sadece yeni mum olustugunda EMA1/MA2 kesisim gorsellestirmesi
+// tetiklenir (TALGO 2).
 //============================================================
 void OnTick()
 {
+   datetime suankiMumZamani = iTime(_Symbol, PERIOD_CURRENT, 0);
+   if(suankiMumZamani == SonKontrolEdilenMumZamani)
+      return; // henuz yeni mum yok, tekrar kontrol etme
+
+   SonKontrolEdilenMumZamani = suankiMumZamani;
+   KesisimKontrolEt();
+   ChartRedraw();
 }

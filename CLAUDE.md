@@ -3,7 +3,7 @@
 ## Genel Metodoloji
 - Bu projede brick-by-brick (tuğla üstüne tuğla) yöntemiyle ilerliyoruz.
 - Her adım onaylanmadan bir sonrakine geçilmez.
-- Her onaylı değişiklik bir versiyon numarası alır: V0001, V0002, ... (format: V0001 05350 EMA)
+- Her onaylı değişiklik bir versiyon numarası alır. Güncel format: `TALGO N` (N her onaylı değişiklikte 1 artar — örn. TALGO 2, TALGO 3, ...). Dosya adı da güncel versiyon etiketiyle eşleşir (örn. `TALGO 2.mq5`).
 
 ## Kod Değişikliği Kuralları
 - Mevcut kodu ASLA baştan yazma (overwrite/create) yapma.

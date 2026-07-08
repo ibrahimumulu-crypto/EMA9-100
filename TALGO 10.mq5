@@ -1,4 +1,4 @@
-// TALGO 9 - Yapi Katmani (HH/HL/LL/LH + BOS + MSB)
+// TALGO 10 - Zigzag Yapi Gorsellestirme
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -28,7 +28,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 9"
+#property copyright "TALGO 10"
 #property version   "2.00"
 
 //============================================================
@@ -95,6 +95,7 @@ int   GecmisCizimBarSiniri = 2000;  // performans icin gecmise donuk cizilecek m
 #define YAPI_ETIKET_PREFIX "TALGO9_YapiEtiket_"
 #define YAPI_BOS_PREFIX    "TALGO9_YapiBOS_"
 #define YAPI_MSB_PREFIX    "TALGO9_YapiMSB_"
+#define YAPI_ZIGZAG_PREFIX "TALGO10_YapiZigzag_"
 
 enum ENUM_YAPI_TIPI
 {
@@ -423,7 +424,7 @@ void YapiEtiketCiz(datetime zaman, double fiyat, string metin, bool usteMi, colo
    if(ObjectFind(0, etiketAdi) >= 0)
       return;
 
-   double bosluk = _Point * 50;
+   double bosluk = _Point * 10;
    double etiketFiyat = usteMi ? (fiyat + bosluk) : (fiyat - bosluk);
 
    ObjectCreate(0, etiketAdi, OBJ_TEXT, 0, zaman, etiketFiyat);
@@ -476,6 +477,26 @@ void YapiMSBCizgiCiz(datetime swingZamani, datetime kirilisZamani, double fiyat)
    ObjectSetInteger(0, cizgiAdi, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, cizgiAdi, OBJPROP_HIDDEN, true);
    ObjectSetInteger(0, cizgiAdi, OBJPROP_BACK, true);
+}
+
+//============================================================
+// TALGO 10: Zigzag segment cizer - onceki swing noktasindan yeni
+// swing noktasina duz siyah cizgi. Fiyat yapisinin iskeletini gosterir.
+//============================================================
+void YapiZigzagSegmentCiz(datetime zaman1, double fiyat1, datetime zaman2, double fiyat2)
+{
+   string segmentAdi = YAPI_ZIGZAG_PREFIX + (string)zaman2;
+   if(ObjectFind(0, segmentAdi) >= 0)
+      return;
+
+   ObjectCreate(0, segmentAdi, OBJ_TREND, 0, zaman1, fiyat1, zaman2, fiyat2);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_COLOR, clrBlack);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_WIDTH, 2);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_RAY_RIGHT, false);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_RAY_LEFT, false);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, segmentAdi, OBJPROP_BACK, true);
 }
 
 //============================================================
@@ -558,6 +579,13 @@ void YapiSwingIsle(datetime zaman, double fiyat, int yon, int barIndex)
    else if(tip == YAPI_LH) { etiketMetni = "LH"; etiketRenk = clrRed; }
 
    YapiEtiketCiz(zaman, fiyat, etiketMetni, (yon == 1), etiketRenk);
+
+   // TALGO 10: Onceki swing noktasindan bu noktaya zigzag segmenti ciz
+   if(YapiSwingSayisi >= 2)
+   {
+      int oncekiIdx = YapiSwingSayisi - 2;
+      YapiZigzagSegmentCiz(YapiSwingZamanlari[oncekiIdx], YapiSwingFiyatlari[oncekiIdx], zaman, fiyat);
+   }
 }
 
 //============================================================
@@ -827,6 +855,8 @@ void OnDeinit(const int reason)
    ObjectsDeleteAll(0, YAPI_ETIKET_PREFIX);
    ObjectsDeleteAll(0, YAPI_BOS_PREFIX);
    ObjectsDeleteAll(0, YAPI_MSB_PREFIX);
+   // TALGO 10: Zigzag segmentlerini temizle
+   ObjectsDeleteAll(0, YAPI_ZIGZAG_PREFIX);
    if(YapiATRHandle != INVALID_HANDLE)
       IndicatorRelease(YapiATRHandle);
 

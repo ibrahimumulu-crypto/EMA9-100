@@ -1,4 +1,4 @@
-// TALGO 6 - MA2 Cizgi Rengi BlueViolet
+// TALGO 7 - Panel Edit+Buton Yan Yana Duzeni
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -28,7 +28,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 6"
+#property copyright "TALGO 7"
 #property version   "2.00"
 
 //============================================================
@@ -311,8 +311,8 @@ void PanelOlustur()
 
    ObjectCreate(0, EditAdi, OBJ_EDIT, 0, 0, 0);
    ObjectSetInteger(0, EditAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, EditAdi, OBJPROP_XDISTANCE, 83);
-   ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 55);
+   ObjectSetInteger(0, EditAdi, OBJPROP_XDISTANCE, 146);
+   ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 80);
    ObjectSetInteger(0, EditAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, EditAdi, OBJPROP_YSIZE, 20);
    ObjectSetString(0, EditAdi, OBJPROP_TEXT, IntegerToString(MA2_Period));

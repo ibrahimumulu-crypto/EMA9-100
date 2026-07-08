@@ -1,4 +1,4 @@
-// TALGO 2 - MA2 Buton Fix + Kesisim Gorsellestirme
+// TALGO 3 - Buton Konumu + Metin Duzeltmesi
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -18,7 +18,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 2"
+#property copyright "TALGO 3"
 #property version   "2.00"
 
 //============================================================
@@ -246,11 +246,11 @@ void PanelOlustur()
 
    ObjectCreate(0, ButonAdi, OBJ_BUTTON, 0, 0, 0);
    ObjectSetInteger(0, ButonAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
-   ObjectSetInteger(0, ButonAdi, OBJPROP_XDISTANCE, 15);
-   ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 15);
+   ObjectSetInteger(0, ButonAdi, OBJPROP_XDISTANCE, 83);
+   ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 40);
    ObjectSetInteger(0, ButonAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, ButonAdi, OBJPROP_YSIZE, 20);
-   ObjectSetString(0, ButonAdi, OBJPROP_TEXT, "Uygula");
+   ObjectSetString(0, ButonAdi, OBJPROP_TEXT, "Apply");
    ObjectSetInteger(0, ButonAdi, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, ButonAdi, OBJPROP_COLOR, clrBlack);
    ObjectSetInteger(0, ButonAdi, OBJPROP_BGCOLOR, clrSilver);

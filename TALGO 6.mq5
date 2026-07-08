@@ -1,4 +1,4 @@
-// TALGO 5 - EMA1 Duzeltmesi, Panel Konum Kaydirmasi
+// TALGO 6 - MA2 Cizgi Rengi BlueViolet
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -28,7 +28,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 5"
+#property copyright "TALGO 6"
 #property version   "2.00"
 
 //============================================================
@@ -79,7 +79,7 @@ datetime SonKontrolEdilenMumZamani = 0; // ayni mumu tekrar tekrar islememek ici
 #define MA1_CIZGI_PREFIX "V0001_MA1Cizgi_"
 #define MA2_CIZGI_PREFIX "V0001_MA2Cizgi_"
 color MA1_CizgiRengi = clrBlack;    // MA1 (EMA1) sabit cizgi rengi
-color MA2_CizgiRengi = clrDeepPink; // MA2 cizgi rengi - periyot degisse de SABIT kalir
+color MA2_CizgiRengi = clrBlueViolet; // MA2 cizgi rengi - periyot degisse de SABIT kalir
 int   GecmisCizimBarSiniri = 2000;  // performans icin gecmise donuk cizilecek maksimum bar sayisi
 
 //============================================================

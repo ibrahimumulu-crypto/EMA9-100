@@ -1,4 +1,4 @@
-// TALGO 4 - MA1/MA2 Renk Duzeltmesi (Ozel Cizim)
+// TALGO 5 - EMA1 Duzeltmesi, Panel Konum Kaydirmasi
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -10,10 +10,14 @@
 //   eklendi (SADECE gorsel - Sart 1 hesaplama mantigi degildir).
 //
 // TALGO 4: MA1/MA2 artik ChartIndicatorAdd ile DEGIL, renkli OBJ_TREND
-// segmentleriyle biz ciziyoruz (MA1=siyah, MA2=koyu pembe). Sebep:
+// segmentleriyle biz ciziyoruz (EMA1=siyah, EMA2=koyu pembe). Sebep:
 // native "Moving Average" indikatorunun rengi disaridan (EA'dan)
 // degistirilemiyor - iMA()'da renk parametresi yok, ObjectSetInteger
 // sadece OBJ_* nesnelerinde calisir. Hesaplama yine native iMA() ile.
+//
+// TALGO 5: MA1_Period varsayilan 50'den 1'e dusuruldu (zaten MODE_EMA).
+// Panel Y konumu +40px asagi kaydirild (EA isim yazisinla cakismamasi icin).
+// Etiketlerde "MA" yerine "EMA" kullanildi.
 //
 // Giris, cikis, stop-loss ve filtre mantigi bu asamada YOKTUR,
 // ileride ayri adimlarda (brick-by-brick) eklenecektir.
@@ -24,7 +28,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 4"
+#property copyright "TALGO 5"
 #property version   "2.00"
 
 //============================================================
@@ -33,7 +37,7 @@
 // degistirilemez. Ileride Sart 1'de "EMA1" referansi olarak
 // kullanilacaktir (bu adimda sadece cizim/hesap altyapisi kurulur).
 //============================================================
-input int                 MA1_Period    = 50;         // MA1 periyodu (sabit referans)
+input int                 MA1_Period    = 1;          // MA1 (EMA1) periyodu (sabit referans)
 input ENUM_MA_METHOD      MA1_Metodu    = MODE_EMA;    // MA1 hesaplama metodu
 input ENUM_APPLIED_PRICE  MA1_FiyatTipi = PRICE_CLOSE; // MA1 uygulanan fiyat
 
@@ -298,17 +302,17 @@ void PanelOlustur()
    ObjectCreate(0, EtiketAdi, OBJ_LABEL, 0, 0, 0);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_XDISTANCE, 170);
-   ObjectSetInteger(0, EtiketAdi, OBJPROP_YDISTANCE, 20);
+   ObjectSetInteger(0, EtiketAdi, OBJPROP_YDISTANCE, 60);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_COLOR, clrWhite);
-   ObjectSetString(0, EtiketAdi, OBJPROP_TEXT, "MA2 Periyot:");
+   ObjectSetString(0, EtiketAdi, OBJPROP_TEXT, "EMA2 Periyot:");
    ObjectSetInteger(0, EtiketAdi, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, EtiketAdi, OBJPROP_HIDDEN, true);
 
    ObjectCreate(0, EditAdi, OBJ_EDIT, 0, 0, 0);
    ObjectSetInteger(0, EditAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, EditAdi, OBJPROP_XDISTANCE, 83);
-   ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 15);
+   ObjectSetInteger(0, EditAdi, OBJPROP_YDISTANCE, 55);
    ObjectSetInteger(0, EditAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, EditAdi, OBJPROP_YSIZE, 20);
    ObjectSetString(0, EditAdi, OBJPROP_TEXT, IntegerToString(MA2_Period));
@@ -323,7 +327,7 @@ void PanelOlustur()
    ObjectCreate(0, ButonAdi, OBJ_BUTTON, 0, 0, 0);
    ObjectSetInteger(0, ButonAdi, OBJPROP_CORNER, CORNER_RIGHT_UPPER);
    ObjectSetInteger(0, ButonAdi, OBJPROP_XDISTANCE, 83);
-   ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 40);
+   ObjectSetInteger(0, ButonAdi, OBJPROP_YDISTANCE, 80);
    ObjectSetInteger(0, ButonAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, ButonAdi, OBJPROP_YSIZE, 20);
    ObjectSetString(0, ButonAdi, OBJPROP_TEXT, "Apply");

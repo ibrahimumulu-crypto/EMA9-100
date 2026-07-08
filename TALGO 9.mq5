@@ -1,4 +1,4 @@
-// TALGO 8 - Panel Y Konumu Koseye Yakin
+// TALGO 9 - Yapi Katmani (HH/HL/LL/LH + BOS + MSB)
 //
 // V0002 degisiklikleri (onceki V0001 kodundan devam):
 // - MA2 kontrol paneli CORNER_LEFT_UPPER'dan CORNER_RIGHT_UPPER'a
@@ -28,7 +28,7 @@
 // Bu modulde emir/stop mantigi olmadigi icin burada kullanilmiyor,
 // sadece ileriki adimlar icin referans olarak not edilmistir.
 #property strict
-#property copyright "TALGO 8"
+#property copyright "TALGO 9"
 #property version   "2.00"
 
 //============================================================
@@ -49,6 +49,15 @@ input ENUM_APPLIED_PRICE  MA1_FiyatTipi = PRICE_CLOSE; // MA1 uygulanan fiyat
 input int                 MA2_BaslangicPeriyodu = 300;      // MA2 baslangic periyodu
 input ENUM_MA_METHOD      MA2_Metodu            = MODE_EMA; // MA2 hesaplama metodu
 input ENUM_APPLIED_PRICE  MA2_FiyatTipi         = PRICE_CLOSE; // MA2 uygulanan fiyat
+
+//============================================================
+// TALGO 9 - YAPI KATMANI INPUT PARAMETRELERI
+// Swing tespiti, gurultu filtresi ve gorsel yapi cizimi ayarlari.
+// Bu katman SALT GORSELDiR - mevcut EMA/MA/panel koduna dokunmaz.
+//============================================================
+input int    YapiSwingN      = 5;    // Swing tespiti icin sag/sol mum sayisi
+input double YapiATREsigi    = 0.5;  // ATR gurultu filtresi carpani
+input int    YapiATRPeriyodu = 14;   // Yapi katmani ATR periyodu
 
 // MA2_Period: MA2'nin GUNCEL periyodunu tutan TEK merkezi global degisken.
 // NOT: MA2_Period degisikligi ileride Sart 1, Sart 2, Sart 4,
@@ -81,6 +90,60 @@ datetime SonKontrolEdilenMumZamani = 0; // ayni mumu tekrar tekrar islememek ici
 color MA1_CizgiRengi = clrBlack;    // MA1 (EMA1) sabit cizgi rengi
 color MA2_CizgiRengi = clrBlueViolet; // MA2 cizgi rengi - periyot degisse de SABIT kalir
 int   GecmisCizimBarSiniri = 2000;  // performans icin gecmise donuk cizilecek maksimum bar sayisi
+
+//--- TALGO 9: Yapi katmani (HH/HL/LL/LH + BOS + MSB) global degiskenler
+#define YAPI_ETIKET_PREFIX "TALGO9_YapiEtiket_"
+#define YAPI_BOS_PREFIX    "TALGO9_YapiBOS_"
+#define YAPI_MSB_PREFIX    "TALGO9_YapiMSB_"
+
+enum ENUM_YAPI_TIPI
+{
+   YAPI_YOK = 0,
+   YAPI_HH  = 1,
+   YAPI_HL  = 2,
+   YAPI_LL  = 3,
+   YAPI_LH  = 4
+};
+
+// Swing noktalari dizileri - ileride Sart 3, Cikis 1, trailing stop erisecek
+double         YapiSwingFiyatlari[];
+datetime       YapiSwingZamanlari[];
+int            YapiSwingYonleri[];      // 1=swing high, -1=swing low
+ENUM_YAPI_TIPI YapiSwingTipleri[];
+int            YapiSwingSayisi = 0;
+
+// BOS verileri - ileride diger moduller erisecek
+double         YapiBOSSeviyeleri[];
+datetime       YapiBOSZamanlari[];
+int            YapiBOSYonleri[];        // 1=yukari, -1=asagi
+int            YapiBOSSayisi = 0;
+
+// MSB verileri - ileride diger moduller erisecek
+double         YapiMSBSeviyeleri[];
+datetime       YapiMSBZamanlari[];
+int            YapiMSBYonleri[];        // 1=yukari, -1=asagi
+int            YapiMSBSayisi = 0;
+
+// Son swing ve yapi takip degiskenleri
+double   SonSwingHighFiyat = 0;
+double   SonSwingLowFiyat  = 0;
+double   SonHHFiyat = 0;
+datetime SonHHZamani = 0;
+double   SonLLFiyat = 0;
+datetime SonLLZamani = 0;
+double   SonLHFiyat = 0;
+datetime SonLHZamani = 0;
+double   SonHLFiyat = 0;
+datetime SonHLZamani = 0;
+int      YapiTrendYonu = 0; // 1=yukselis (HH+HL), -1=dusus (LL+LH), 0=belirsiz
+ENUM_YAPI_TIPI SonSwingHighTipi = YAPI_YOK;
+ENUM_YAPI_TIPI SonSwingLowTipi  = YAPI_YOK;
+bool     BOSYukariTetiklendi = false;
+bool     BOSAsagiTetiklendi  = false;
+bool     MSBYukariTetiklendi = false;
+bool     MSBAsagiTetiklendi  = false;
+
+int      YapiATRHandle = INVALID_HANDLE;
 
 //============================================================
 // Yardimci: Bir MA'yi iMA handle'i ile olusturur.
@@ -292,6 +355,352 @@ void KesisimOkuCiz(datetime mumZamani, double fiyat, bool yukariKesisim)
 }
 
 //============================================================
+// TALGO 9: Verilen bar index'inin swing high olup olmadigini kontrol
+// eder. Sag ve sol N mumun high degeri bu mumunkinden kucuk olmali.
+//============================================================
+bool YapiSwingHighMi(int barIndex, int n)
+{
+   double highDegeri = iHigh(_Symbol, PERIOD_CURRENT, barIndex);
+   if(highDegeri == 0) return false;
+
+   for(int j = 1; j <= n; j++)
+   {
+      if(iHigh(_Symbol, PERIOD_CURRENT, barIndex + j) >= highDegeri)
+         return false;
+      if(barIndex - j >= 0 && iHigh(_Symbol, PERIOD_CURRENT, barIndex - j) >= highDegeri)
+         return false;
+   }
+   return true;
+}
+
+//============================================================
+// TALGO 9: Verilen bar index'inin swing low olup olmadigini kontrol
+// eder. Sag ve sol N mumun low degeri bu mumunkinden buyuk olmali.
+//============================================================
+bool YapiSwingLowMu(int barIndex, int n)
+{
+   double lowDegeri = iLow(_Symbol, PERIOD_CURRENT, barIndex);
+   if(lowDegeri == 0) return false;
+
+   for(int j = 1; j <= n; j++)
+   {
+      if(iLow(_Symbol, PERIOD_CURRENT, barIndex + j) <= lowDegeri)
+         return false;
+      if(barIndex - j >= 0 && iLow(_Symbol, PERIOD_CURRENT, barIndex - j) <= lowDegeri)
+         return false;
+   }
+   return true;
+}
+
+//============================================================
+// TALGO 9: ATR gurultu filtresi. Yeni swing ile onceki swing
+// arasindaki mesafe ATR x esik degerinden buyuk olmali.
+// barIndex: ATR degerini hangi mumdan okuyacagini belirler.
+//============================================================
+bool YapiATRFiltresiGec(double yeniFiyat, int barIndex)
+{
+   if(YapiSwingSayisi == 0)
+      return true;
+
+   double atrDeger[];
+   ArraySetAsSeries(atrDeger, true);
+   if(YapiATRHandle == INVALID_HANDLE || CopyBuffer(YapiATRHandle, 0, barIndex, 1, atrDeger) != 1)
+      return true;
+
+   double sonFiyat = YapiSwingFiyatlari[YapiSwingSayisi - 1];
+   double mesafe = MathAbs(yeniFiyat - sonFiyat);
+
+   return (mesafe >= atrDeger[0] * YapiATREsigi);
+}
+
+//============================================================
+// TALGO 9: Chart uzerine yapi etiketi (HH/HL/LL/LH) cizer.
+// Swing high etiketleri mumun ustunde, swing low mumun altinda.
+//============================================================
+void YapiEtiketCiz(datetime zaman, double fiyat, string metin, bool usteMi, color renk)
+{
+   string etiketAdi = YAPI_ETIKET_PREFIX + (string)zaman + "_" + metin;
+   if(ObjectFind(0, etiketAdi) >= 0)
+      return;
+
+   double bosluk = _Point * 50;
+   double etiketFiyat = usteMi ? (fiyat + bosluk) : (fiyat - bosluk);
+
+   ObjectCreate(0, etiketAdi, OBJ_TEXT, 0, zaman, etiketFiyat);
+   ObjectSetString(0, etiketAdi, OBJPROP_TEXT, metin);
+   ObjectSetInteger(0, etiketAdi, OBJPROP_COLOR, renk);
+   ObjectSetInteger(0, etiketAdi, OBJPROP_FONTSIZE, 8);
+   ObjectSetString(0, etiketAdi, OBJPROP_FONT, "Arial Bold");
+   ObjectSetInteger(0, etiketAdi, OBJPROP_ANCHOR, usteMi ? ANCHOR_LOWER : ANCHOR_UPPER);
+   ObjectSetInteger(0, etiketAdi, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, etiketAdi, OBJPROP_HIDDEN, true);
+}
+
+//============================================================
+// TALGO 9: BOS cizgisi - yatay kesikli cizgi (STYLE_DASH).
+// Kirilan swing seviyesinden kirilis noktasina kadar.
+//============================================================
+void YapiBOSCizgiCiz(datetime swingZamani, datetime kirilisZamani, double fiyat, color renk)
+{
+   string cizgiAdi = YAPI_BOS_PREFIX + (string)kirilisZamani + "_" + DoubleToString(fiyat, _Digits);
+   if(ObjectFind(0, cizgiAdi) >= 0)
+      return;
+
+   ObjectCreate(0, cizgiAdi, OBJ_TREND, 0, swingZamani, fiyat, kirilisZamani, fiyat);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_COLOR, renk);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_STYLE, STYLE_DASH);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_RAY_RIGHT, false);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_RAY_LEFT, false);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_BACK, true);
+}
+
+//============================================================
+// TALGO 9: MSB cizgisi - yatay kesikli-noktali cizgi (STYLE_DASHDOT).
+// Mavi renk, BOS'tan ayirt etmek icin.
+//============================================================
+void YapiMSBCizgiCiz(datetime swingZamani, datetime kirilisZamani, double fiyat)
+{
+   string cizgiAdi = YAPI_MSB_PREFIX + (string)kirilisZamani + "_" + DoubleToString(fiyat, _Digits);
+   if(ObjectFind(0, cizgiAdi) >= 0)
+      return;
+
+   ObjectCreate(0, cizgiAdi, OBJ_TREND, 0, swingZamani, fiyat, kirilisZamani, fiyat);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_COLOR, clrDodgerBlue);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_STYLE, STYLE_DASHDOT);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_WIDTH, 1);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_RAY_RIGHT, false);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_RAY_LEFT, false);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_HIDDEN, true);
+   ObjectSetInteger(0, cizgiAdi, OBJPROP_BACK, true);
+}
+
+//============================================================
+// TALGO 9: Onaylanan swing noktasini siniflandirir (HH/HL/LL/LH),
+// dizilere kaydeder, chart uzerine etiket cizer, BOS/MSB takip
+// degiskenlerini gunceller.
+//============================================================
+void YapiSwingIsle(datetime zaman, double fiyat, int yon, int barIndex)
+{
+   if(!YapiATRFiltresiGec(fiyat, barIndex))
+      return;
+
+   ENUM_YAPI_TIPI tip = YAPI_YOK;
+
+   if(yon == 1)
+   {
+      if(SonSwingHighFiyat == 0)
+         tip = YAPI_HH;
+      else
+         tip = (fiyat > SonSwingHighFiyat) ? YAPI_HH : YAPI_LH;
+      SonSwingHighFiyat = fiyat;
+      SonSwingHighTipi = tip;
+   }
+   else
+   {
+      if(SonSwingLowFiyat == 0)
+         tip = YAPI_HL;
+      else
+         tip = (fiyat > SonSwingLowFiyat) ? YAPI_HL : YAPI_LL;
+      SonSwingLowFiyat = fiyat;
+      SonSwingLowTipi = tip;
+   }
+
+   YapiSwingSayisi++;
+   ArrayResize(YapiSwingFiyatlari, YapiSwingSayisi);
+   ArrayResize(YapiSwingZamanlari, YapiSwingSayisi);
+   ArrayResize(YapiSwingYonleri, YapiSwingSayisi);
+   ArrayResize(YapiSwingTipleri, YapiSwingSayisi);
+   int idx = YapiSwingSayisi - 1;
+   YapiSwingFiyatlari[idx] = fiyat;
+   YapiSwingZamanlari[idx] = zaman;
+   YapiSwingYonleri[idx] = yon;
+   YapiSwingTipleri[idx] = tip;
+
+   if(tip == YAPI_HH)
+   {
+      SonHHFiyat = fiyat;
+      SonHHZamani = zaman;
+      BOSYukariTetiklendi = false;
+   }
+   else if(tip == YAPI_LL)
+   {
+      SonLLFiyat = fiyat;
+      SonLLZamani = zaman;
+      BOSAsagiTetiklendi = false;
+   }
+   else if(tip == YAPI_LH)
+   {
+      SonLHFiyat = fiyat;
+      SonLHZamani = zaman;
+      MSBYukariTetiklendi = false;
+   }
+   else if(tip == YAPI_HL)
+   {
+      SonHLFiyat = fiyat;
+      SonHLZamani = zaman;
+      MSBAsagiTetiklendi = false;
+   }
+
+   if(SonSwingHighTipi == YAPI_HH && SonSwingLowTipi == YAPI_HL)
+      YapiTrendYonu = 1;
+   else if(SonSwingHighTipi == YAPI_LH && SonSwingLowTipi == YAPI_LL)
+      YapiTrendYonu = -1;
+
+   string etiketMetni = "";
+   color etiketRenk = clrWhite;
+   if(tip == YAPI_HH)      { etiketMetni = "HH"; etiketRenk = clrLime; }
+   else if(tip == YAPI_HL) { etiketMetni = "HL"; etiketRenk = clrLime; }
+   else if(tip == YAPI_LL) { etiketMetni = "LL"; etiketRenk = clrRed; }
+   else if(tip == YAPI_LH) { etiketMetni = "LH"; etiketRenk = clrRed; }
+
+   YapiEtiketCiz(zaman, fiyat, etiketMetni, (yon == 1), etiketRenk);
+}
+
+//============================================================
+// TALGO 9: BOS (Break of Structure) kontrolu. Kapanisin onceki
+// HH'yi yukari veya onceki LL'yi asagi kirmasi.
+//============================================================
+void YapiBOSKontrolEt(int barIndex)
+{
+   double kapanis = iClose(_Symbol, PERIOD_CURRENT, barIndex);
+   datetime zaman = iTime(_Symbol, PERIOD_CURRENT, barIndex);
+
+   if(SonHHFiyat > 0 && !BOSYukariTetiklendi && kapanis > SonHHFiyat)
+   {
+      YapiBOSCizgiCiz(SonHHZamani, zaman, SonHHFiyat, clrLime);
+      BOSYukariTetiklendi = true;
+      YapiBOSSayisi++;
+      ArrayResize(YapiBOSSeviyeleri, YapiBOSSayisi);
+      ArrayResize(YapiBOSZamanlari, YapiBOSSayisi);
+      ArrayResize(YapiBOSYonleri, YapiBOSSayisi);
+      YapiBOSSeviyeleri[YapiBOSSayisi - 1] = SonHHFiyat;
+      YapiBOSZamanlari[YapiBOSSayisi - 1] = zaman;
+      YapiBOSYonleri[YapiBOSSayisi - 1] = 1;
+   }
+
+   if(SonLLFiyat > 0 && !BOSAsagiTetiklendi && kapanis < SonLLFiyat)
+   {
+      YapiBOSCizgiCiz(SonLLZamani, zaman, SonLLFiyat, clrRed);
+      BOSAsagiTetiklendi = true;
+      YapiBOSSayisi++;
+      ArrayResize(YapiBOSSeviyeleri, YapiBOSSayisi);
+      ArrayResize(YapiBOSZamanlari, YapiBOSSayisi);
+      ArrayResize(YapiBOSYonleri, YapiBOSSayisi);
+      YapiBOSSeviyeleri[YapiBOSSayisi - 1] = SonLLFiyat;
+      YapiBOSZamanlari[YapiBOSSayisi - 1] = zaman;
+      YapiBOSYonleri[YapiBOSSayisi - 1] = -1;
+   }
+}
+
+//============================================================
+// TALGO 9: MSB (Market Structure Break) kontrolu.
+// Dusus trendinde kapanis > son LH → yukari MSB (trend donusu)
+// Yukselis trendinde kapanis < son HL → asagi MSB (trend donusu)
+//============================================================
+void YapiMSBKontrolEt(int barIndex)
+{
+   double kapanis = iClose(_Symbol, PERIOD_CURRENT, barIndex);
+   datetime zaman = iTime(_Symbol, PERIOD_CURRENT, barIndex);
+
+   if(YapiTrendYonu == -1 && SonLHFiyat > 0 && !MSBYukariTetiklendi && kapanis > SonLHFiyat)
+   {
+      YapiMSBCizgiCiz(SonLHZamani, zaman, SonLHFiyat);
+      MSBYukariTetiklendi = true;
+      YapiMSBSayisi++;
+      ArrayResize(YapiMSBSeviyeleri, YapiMSBSayisi);
+      ArrayResize(YapiMSBZamanlari, YapiMSBSayisi);
+      ArrayResize(YapiMSBYonleri, YapiMSBSayisi);
+      YapiMSBSeviyeleri[YapiMSBSayisi - 1] = SonLHFiyat;
+      YapiMSBZamanlari[YapiMSBSayisi - 1] = zaman;
+      YapiMSBYonleri[YapiMSBSayisi - 1] = 1;
+   }
+
+   if(YapiTrendYonu == 1 && SonHLFiyat > 0 && !MSBAsagiTetiklendi && kapanis < SonHLFiyat)
+   {
+      YapiMSBCizgiCiz(SonHLZamani, zaman, SonHLFiyat);
+      MSBAsagiTetiklendi = true;
+      YapiMSBSayisi++;
+      ArrayResize(YapiMSBSeviyeleri, YapiMSBSayisi);
+      ArrayResize(YapiMSBZamanlari, YapiMSBSayisi);
+      ArrayResize(YapiMSBYonleri, YapiMSBSayisi);
+      YapiMSBSeviyeleri[YapiMSBSayisi - 1] = SonHLFiyat;
+      YapiMSBZamanlari[YapiMSBSayisi - 1] = zaman;
+      YapiMSBYonleri[YapiMSBSayisi - 1] = -1;
+   }
+}
+
+//============================================================
+// TALGO 9: Gecmis barlardaki swing noktalarini tarar, siniflandirir,
+// BOS/MSB kontrolu yapar ve chart uzerine cizer. OnInit'te cagrilir.
+//============================================================
+void YapiGecmisiTara()
+{
+   int barSayisi = Bars(_Symbol, PERIOD_CURRENT);
+   int sinir = MathMin(GecmisCizimBarSiniri, barSayisi - 1);
+   if(sinir <= YapiSwingN * 2)
+      return;
+
+   for(int i = sinir - YapiSwingN; i >= YapiSwingN; i--)
+   {
+      datetime mumZamani = iTime(_Symbol, PERIOD_CURRENT, i);
+
+      if(YapiSwingHighMi(i, YapiSwingN))
+      {
+         double fiyat = iHigh(_Symbol, PERIOD_CURRENT, i);
+         YapiSwingIsle(mumZamani, fiyat, 1, i);
+      }
+
+      if(YapiSwingLowMu(i, YapiSwingN))
+      {
+         double fiyat = iLow(_Symbol, PERIOD_CURRENT, i);
+         YapiSwingIsle(mumZamani, fiyat, -1, i);
+      }
+
+      YapiBOSKontrolEt(i);
+      YapiMSBKontrolEt(i);
+   }
+
+   for(int i = YapiSwingN - 1; i >= 1; i--)
+   {
+      YapiBOSKontrolEt(i);
+      YapiMSBKontrolEt(i);
+   }
+}
+
+//============================================================
+// TALGO 9: Yeni mum olustugunda swing tespiti ve BOS/MSB
+// kontrolu yapar. OnTick'te her yeni mumda cagrilir.
+//============================================================
+void YapiYeniBarIsle()
+{
+   int barSayisi = Bars(_Symbol, PERIOD_CURRENT);
+   if(barSayisi <= YapiSwingN * 2 + 1)
+      return;
+
+   int kontrolBarIndex = YapiSwingN;
+   datetime mumZamani = iTime(_Symbol, PERIOD_CURRENT, kontrolBarIndex);
+
+   if(YapiSwingHighMi(kontrolBarIndex, YapiSwingN))
+   {
+      double fiyat = iHigh(_Symbol, PERIOD_CURRENT, kontrolBarIndex);
+      YapiSwingIsle(mumZamani, fiyat, 1, kontrolBarIndex);
+   }
+
+   if(YapiSwingLowMu(kontrolBarIndex, YapiSwingN))
+   {
+      double fiyat = iLow(_Symbol, PERIOD_CURRENT, kontrolBarIndex);
+      YapiSwingIsle(mumZamani, fiyat, -1, kontrolBarIndex);
+   }
+
+   YapiBOSKontrolEt(1);
+   YapiMSBKontrolEt(1);
+}
+
+//============================================================
 // MA2 kontrol panelini (etiket + edit kutusu + buton) chart
 // uzerinde olusturur.
 //============================================================
@@ -376,6 +785,13 @@ int OnInit()
    MAGecmisiCiz(MA2_Handle, MA2_CIZGI_PREFIX, MA2_CizgiRengi);
 
    PanelOlustur();
+
+   // TALGO 9: Yapi katmani ATR handle'i olustur ve gecmisi tara
+   YapiATRHandle = iATR(_Symbol, PERIOD_CURRENT, YapiATRPeriyodu);
+   if(YapiATRHandle == INVALID_HANDLE)
+      Print("UYARI: Yapi katmani ATR handle olusturulamadi, gurultu filtresi devre disi.");
+   YapiGecmisiTara();
+
    ChartRedraw();
 
    return INIT_SUCCEEDED;
@@ -406,6 +822,13 @@ void OnDeinit(const int reason)
    // TALGO 4: MA1/MA2 renkli cizgi segmentlerini de temizle
    ObjectsDeleteAll(0, MA1_CIZGI_PREFIX);
    ObjectsDeleteAll(0, MA2_CIZGI_PREFIX);
+
+   // TALGO 9: Yapi katmani nesnelerini ve ATR handle'ini temizle
+   ObjectsDeleteAll(0, YAPI_ETIKET_PREFIX);
+   ObjectsDeleteAll(0, YAPI_BOS_PREFIX);
+   ObjectsDeleteAll(0, YAPI_MSB_PREFIX);
+   if(YapiATRHandle != INVALID_HANDLE)
+      IndicatorRelease(YapiATRHandle);
 
    ChartRedraw();
 }
@@ -460,5 +883,9 @@ void OnTick()
    MAYeniBarCiz(MA2_Handle, MA2_CIZGI_PREFIX, MA2_CizgiRengi);
 
    KesisimKontrolEt();
+
+   // TALGO 9: Yapi katmani yeni bar islemesi
+   YapiYeniBarIsle();
+
    ChartRedraw();
 }

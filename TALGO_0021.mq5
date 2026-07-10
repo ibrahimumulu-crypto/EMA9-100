@@ -98,11 +98,13 @@ string YapiEditAdi   = PANEL_PREFIX + "YapiEdit";
 string YapiButonAdi  = PANEL_PREFIX + "YapiApply";
 string YapiToggleAdi = PANEL_PREFIX + "YapiCO";
 
-input int    YapiATRPeriyodu = 14;
-input double YapiATRCarpani  = 2.0;
+input int YapiBaslangicN  = 15;
+input int YapiATRPeriyodu = 14;
 
-double AktifATRCarpani = 2.0;
-int    YapiATRHandle   = INVALID_HANDLE;
+#define YAPI_ATR_CARPANI 2.0
+
+int    YapiPivotN     = 15;
+int    YapiATRHandle  = INVALID_HANDLE;
 
 int      ZigzagYon = 0;
 double   ZigzagEkstrem = 0;
@@ -575,7 +577,7 @@ void YapiATRZigzagTara(int baslangicBar, int bitisBar)
    {
       if(CopyBuffer(YapiATRHandle, 0, i, 1, atrBuf) != 1) continue;
       if(atrBuf[0] <= 0) continue;
-      double esik = atrBuf[0] * AktifATRCarpani;
+      double esik = atrBuf[0] * YAPI_ATR_CARPANI;
 
       double barHigh = iHigh(_Symbol, PERIOD_CURRENT, i);
       double barLow  = iLow(_Symbol, PERIOD_CURRENT, i);
@@ -704,7 +706,7 @@ void YapiYeniBarIsle()
    ArraySetAsSeries(atrBuf, true);
    if(CopyBuffer(YapiATRHandle, 0, 1, 1, atrBuf) != 1) return;
    if(atrBuf[0] <= 0) return;
-   double esik = atrBuf[0] * AktifATRCarpani;
+   double esik = atrBuf[0] * YAPI_ATR_CARPANI;
 
    double barHigh = iHigh(_Symbol, PERIOD_CURRENT, 1);
    double barLow  = iLow(_Symbol, PERIOD_CURRENT, 1);
@@ -942,7 +944,7 @@ void PanelOlustur()
    ObjectSetString(0, YapiLabelAdi, OBJPROP_FONT, "Arial Bold");
    ObjectSetInteger(0, YapiLabelAdi, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, YapiLabelAdi, OBJPROP_COLOR, clrWhite);
-   ObjectSetString(0, YapiLabelAdi, OBJPROP_TEXT, "ATR Zigzag:");
+   ObjectSetString(0, YapiLabelAdi, OBJPROP_TEXT, "Pivot N:");
    ObjectSetInteger(0, YapiLabelAdi, OBJPROP_SELECTABLE, false);
    ObjectSetInteger(0, YapiLabelAdi, OBJPROP_HIDDEN, true);
 
@@ -952,7 +954,7 @@ void PanelOlustur()
    ObjectSetInteger(0, YapiEditAdi, OBJPROP_YDISTANCE, 75);
    ObjectSetInteger(0, YapiEditAdi, OBJPROP_XSIZE, 60);
    ObjectSetInteger(0, YapiEditAdi, OBJPROP_YSIZE, 20);
-   ObjectSetString(0, YapiEditAdi, OBJPROP_TEXT, DoubleToString(AktifATRCarpani, 1));
+   ObjectSetString(0, YapiEditAdi, OBJPROP_TEXT, IntegerToString(YapiPivotN));
    ObjectSetInteger(0, YapiEditAdi, OBJPROP_FONTSIZE, 9);
    ObjectSetInteger(0, YapiEditAdi, OBJPROP_COLOR, clrBlack);
    ObjectSetInteger(0, YapiEditAdi, OBJPROP_BGCOLOR, clrWhite);
@@ -1030,7 +1032,7 @@ int OnInit()
    PanelOlustur();
 
    // TALGO 0021: ATR handle olustur ve yapi modulu baslat
-   AktifATRCarpani = YapiATRCarpani;
+   YapiPivotN = YapiBaslangicN;
    YapiATRHandle = iATR(_Symbol, PERIOD_CURRENT, YapiATRPeriyodu);
    if(YapiATRHandle == INVALID_HANDLE)
       Print("UYARI: Yapi ATR handle olusturulamadi");
@@ -1117,13 +1119,13 @@ void OnChartEvent(const int id, const long &lparam, const double &dparam, const 
    {
       ObjectSetInteger(0, YapiButonAdi, OBJPROP_STATE, false);
       string yapiMetin = ObjectGetString(0, YapiEditAdi, OBJPROP_TEXT);
-      double yeniCarpan = StringToDouble(yapiMetin);
-      if(yeniCarpan < 0.5) yeniCarpan = 0.5;
-      if(yeniCarpan > 5.0) yeniCarpan = 5.0;
-      AktifATRCarpani = yeniCarpan;
-      ObjectSetString(0, YapiEditAdi, OBJPROP_TEXT, DoubleToString(AktifATRCarpani, 1));
+      int yeniN = (int)StringToInteger(yapiMetin);
+      if(yeniN < 1) yeniN = 1;
+      if(yeniN > 100) yeniN = 100;
+      YapiPivotN = yeniN;
+      ObjectSetString(0, YapiEditAdi, OBJPROP_TEXT, IntegerToString(YapiPivotN));
       YapiSifirlaVeCiz();
-      Print("ATR carpani guncellendi: ", AktifATRCarpani);
+      Print("Pivot N guncellendi: ", YapiPivotN);
       return;
    }
 

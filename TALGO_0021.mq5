@@ -366,9 +366,9 @@ bool YapiSwingLowMu(int barIndex, int n)
    {
       if(barIndex - j < 0)
          return false;
-      if(iLow(_Symbol, PERIOD_CURRENT, barIndex + j) >= merkez)
+      if(iLow(_Symbol, PERIOD_CURRENT, barIndex + j) <= merkez)
          return false;
-      if(iLow(_Symbol, PERIOD_CURRENT, barIndex - j) >= merkez)
+      if(iLow(_Symbol, PERIOD_CURRENT, barIndex - j) <= merkez)
          return false;
    }
    return true;
@@ -489,7 +489,7 @@ void YapiSwingOnayla(int yon, double fiyat, datetime zaman)
    {
       if(yon == 1)
       {
-         if(SonHHFiyat == 0)
+         if(SonLLFiyat == 0)
          {
             SonHHFiyat = fiyat;
             tip = YAPI_HH;
@@ -505,7 +505,7 @@ void YapiSwingOnayla(int yon, double fiyat, datetime zaman)
       }
       else
       {
-         if(SonLLFiyat == 0)
+         if(SonHHFiyat == 0)
          {
             SonLLFiyat = fiyat;
             tip = YAPI_LL;
